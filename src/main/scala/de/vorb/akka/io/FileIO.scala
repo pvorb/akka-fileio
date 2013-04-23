@@ -3,13 +3,12 @@ package de.vorb.akka.io
 import java.io.EOFException
 import java.nio.channels.AsynchronousFileChannel
 import java.nio.file.{ OpenOption, Path, StandardOpenOption }
-
 import scala.collection.JavaConversions
 import scala.concurrent.{ ExecutionContext, Future }
-
 import akka.actor.IO
 import akka.actor.IO.{ Chunk, Done, EOF, Error, Failure, Input, Iteratee, Next }
 import akka.util.ByteString
+import java.util.regex.Pattern
 
 trait FileIO {
   def size: Long
@@ -52,5 +51,25 @@ object FileIO {
       }
 
     Next(step(ByteString.empty))
+  }
+
+  def takeListUntil(delimiter: ByteString, inclusive: Boolean = false)(
+    iter: Iteratee[ByteString]): Iteratee[List[ByteString]] = {
+    def step(taken: ByteString, list: List[ByteString])(input: Input): (Iteratee[List[ByteString]], Input) = {
+      input match {
+        case Chunk(more) =>
+          val bytes = taken ++ more
+
+          val startIdx = bytes.indexOfSlice(delimiter,
+            math.max(taken.length - delimiter.length, 0))
+          if (startIdx >= 0) {
+            val endIdx = startIdx + delimiter.length
+            return (Done(list), input)
+          }
+      }
+      null
+    }
+
+    Next(step(ByteString.empty, Nil))
   }
 }
